@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 7cf760e0f2d18f24db081e79fe681efd
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - arCameraManager: {instanceID: 0}
+  - arOcclusionManager: {instanceID: 0}
+  - modelAsset: {fileID: 5022602860645237092, guid: 2fee677cd16f5374aaafe9a7125644dc, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
