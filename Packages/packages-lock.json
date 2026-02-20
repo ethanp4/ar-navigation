@@ -274,7 +274,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.arfoundation": {
-      "version": "6.3.2",
+      "version": "6.3.3",
       "depth": 0,
       "source": "registry",
       "dependencies": {
