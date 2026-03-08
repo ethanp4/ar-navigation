@@ -8,6 +8,7 @@ namespace ARDepthRefinement
      * if the depth is == 0 it is invalid
      */
 
+    [CreateAssetMenu(menuName = "AR Depth Refinement/Processors/Confidence Filter Processor")]
     public class ConfidenceFilterProcessor : DepthProcessorBase
     {
         [Header("Shader")]

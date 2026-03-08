@@ -8,8 +8,7 @@ public class DepthConfirmation : MonoBehaviour
     void Update()
     {
         if (!occlusion) return;
-
-        if (occlusion.environmentDepthTexture != null)
+        if (occlusion.TryGetEnvironmentDepthTexture(out _))
             Debug.Log("Depth ACTIVE");
         else
             Debug.Log("Depth NOT available");
