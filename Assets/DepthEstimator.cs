@@ -64,20 +64,31 @@ public class DepthEstimator : MonoBehaviour
             outputFormat = TextureFormat.RGB24,
             transformation = XRCpuImage.Transformation.MirrorY
         };
-        
+
         Texture2D inputTexture = new Texture2D(inferenceWidth, inferenceHeight, TextureFormat.RGB24, false);
         var rawData = inputTexture.GetRawTextureData<byte>();
         cpuImage.Convert(conversionParams, rawData);
         inputTexture.Apply();
-        
-        using (Unity.InferenceEngine.Tensor<float> inputTensor = Unity.InferenceEngine.TextureConverter.ToTensor(inputTexture, inferenceWidth, inferenceHeight, 3))
-        {
-            worker.Schedule(inputTensor);
-            Unity.InferenceEngine.Tensor<float> outputTensor = worker.PeekOutput() as Unity.InferenceEngine.Tensor<float>;
-            outputTensor.ReadbackAndClone();
-            UpdateDepthTexture(outputTensor);
-        }
-        
+
+        using Unity.InferenceEngine.Tensor<float> inputTensor =
+            new Unity.InferenceEngine.Tensor<float>(
+                new Unity.InferenceEngine.TensorShape(1, inferenceHeight, inferenceWidth, 3)
+            );
+
+        Unity.InferenceEngine.TextureConverter.ToTensor(
+            inputTexture,
+            inputTensor,
+            new Unity.InferenceEngine.TextureTransform()
+        );
+
+        worker.Schedule(inputTensor);
+
+        Unity.InferenceEngine.Tensor<float> outputTensor =
+            worker.PeekOutput() as Unity.InferenceEngine.Tensor<float>;
+
+        outputTensor.ReadbackAndClone();
+        UpdateDepthTexture(outputTensor);
+
         Destroy(inputTexture);
     }
     

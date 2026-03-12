@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ec4f4f5ae7e5f648bb04324e7187222, type: 3}
+  m_Name: Confidence Filter Processor
+  m_EditorClassIdentifier: Assembly-CSharp::ARDepthRefinement.ConfidenceFilterProcessor
+  enabledInPipeline: 1
+  shader: {fileID: 4800000, guid: e4bbffb94b76d0a45abdef8085be935b, type: 3}
+  ifDiscardZeroDepth: 1
+  gradientThreshold: 0.02
+  gradientScale: 1
