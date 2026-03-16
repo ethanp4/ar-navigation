@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "com.github-glitchenzo.nugetforunity": {
+      "version": "file:com.github-glitchenzo.nugetforunity",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.unity.ai.inference": {
       "version": "2.5.0",
       "depth": 0,
