@@ -61,9 +61,9 @@ Shader "ARDepthRefinement/DepthConfidenceFilter"
                 float gradient = abs(center - right) + abs(center - down);
 
                 if (gradient > _GradientThreshold)
-                    return half4(0,0,0,0);
+                    return half4(0,0,0,1);
 
-                return half4(center,0,0,1);
+                return half4(center, center, center, 1);
             }
 
             ENDHLSL
