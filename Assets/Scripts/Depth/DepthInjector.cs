@@ -21,7 +21,7 @@ namespace ARDepthRefinement
         [SerializeField] int depthHeight = 240;
 
         // Thread-safe queue: background WS thread → main thread
-        readonly Queue<(byte[] data, float sentTime)> _pendingFrames = new();
+        readonly Queue<(byte[] data, int w, int h, float rttMs)> _pendingFrames = new();
         readonly object _lock = new();
 
         Texture2D _staging;   // CPU staging texture, reused every frame
@@ -53,22 +53,24 @@ namespace ARDepthRefinement
         }
 
         // ── Called from any thread (WebSocket receive thread) ─────────────────
-        /// <param name="floatBytes">Raw IEEE-754 float32 bytes, row-major, depthWidth×depthHeight</param>
-        /// <param name="sentTimestamp">Time.realtimeSinceStartup value recorded when the frame was sent</param>
-        public void EnqueueServerDepth(byte[] floatBytes, float sentTimestamp)
+        /// <param name="floatBytes">Raw IEEE-754 float32 bytes, row-major</param>
+        /// <param name="w">Width of the depth map (must match server INFER_SIZE)</param>
+        /// <param name="h">Height of the depth map (must match server INFER_SIZE)</param>
+        /// <param name="rttMs">Round-trip time in milliseconds, already computed by caller</param>
+        public void EnqueueServerDepth(byte[] floatBytes, int w, int h, float rttMs)
         {
             lock (_lock)
             {
                 // Keep only the latest frame — drop older ones to avoid lag
                 _pendingFrames.Clear();
-                _pendingFrames.Enqueue((floatBytes, sentTimestamp));
+                _pendingFrames.Enqueue((floatBytes, w, h, rttMs));
             }
         }
 
         // ── Upload on main thread ─────────────────────────────────────────────
         void Update()
         {
-            (byte[] data, float sentTime) frame = default;
+            (byte[] data, int w, int h, float rttMs) frame = default;
             bool hasFrame = false;
 
             lock (_lock)
@@ -82,11 +84,20 @@ namespace ARDepthRefinement
 
             if (!hasFrame) return;
 
-            // Resize staging texture if server resolution changed
-            if (_staging.width != depthWidth || _staging.height != depthHeight)
+            // Resize staging texture if server resolution differs from last frame
+            if (_staging == null || _staging.width != frame.w || _staging.height != frame.h)
             {
-                Destroy(_staging);
-                _staging = new Texture2D(depthWidth, depthHeight, TextureFormat.RFloat, false);
+                if (_staging != null)
+                    Destroy(_staging);
+                _staging = new Texture2D(frame.w, frame.h, TextureFormat.RFloat, false);
+            }
+
+            // Resize the ServerDepthRT if needed
+            if (ServerDepthRT == null || ServerDepthRT.width != frame.w || ServerDepthRT.height != frame.h)
+            {
+                if (ServerDepthRT != null)
+                    ServerDepthRT.Release();
+                ServerDepthRT = CreateRT(frame.w, frame.h);
             }
 
             // Upload float bytes → GPU
@@ -95,15 +106,23 @@ namespace ARDepthRefinement
             Graphics.Blit(_staging, ServerDepthRT);
 
             // Notify pipeline manager with round-trip latency
-            float rttMs = (Time.realtimeSinceStartup - frame.sentTime) * 1000f;
             if (ARHybridPipelineManager.Instance != null)
-                ARHybridPipelineManager.Instance.NotifyServerDepthUpdated(rttMs);
+                ARHybridPipelineManager.Instance.NotifyServerDepthUpdated(frame.rttMs);
         }
 
         void OnDestroy()
         {
-            ServerDepthRT?.Release();
-            if (_staging != null) Destroy(_staging);
+            if (ServerDepthRT != null)
+            {
+                ServerDepthRT.Release();
+                ServerDepthRT = null;
+            }
+
+            if (_staging != null)
+            {
+                Destroy(_staging);
+                _staging = null;
+            }
         }
     }
 }
