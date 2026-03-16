@@ -40,6 +40,11 @@ namespace ARDepthRefinement
         Texture2D _captureTex;
         int _frameCount = 0;
         bool _connecting = false;
+        float _lastSendTime = 0f;
+
+        [Header("Server Depth Size")]
+        [Tooltip("Must match INFER_SIZE in receive_image.py — default is 518.")]
+        [SerializeField] int serverDepthSize = 518;
 
         /// <summary>
         /// Set to true by ServerDiscovery once the server IP is resolved.
@@ -47,7 +52,7 @@ namespace ARDepthRefinement
         /// If you are not using ServerDiscovery (e.g. testing with a fixed IP),
         /// set this to true manually or add a fallback IP in the inspector.
         /// </summary>
-        
+
         [HideInInspector] public bool discoveryReady = false;
 
         [HideInInspector]
@@ -109,40 +114,35 @@ namespace ARDepthRefinement
                     transformation = XRCpuImage.Transformation.MirrorY
                 };
 
-                // Synchronous — fast enough for 320×240
                 cpuImg.Convert(convParams, _captureTex.GetRawTextureData<byte>());
                 _captureTex.Apply();
             }
 
             byte[] jpg = _captureTex.EncodeToJPG(jpegQuality);
 
-            // Prepend 4-byte float timestamp for RTT measurement
-            float timestamp = Time.realtimeSinceStartup;
-            byte[] tsBytes = BitConverter.GetBytes(timestamp);
-            byte[] payload = new byte[4 + jpg.Length];
-            Buffer.BlockCopy(tsBytes, 0, payload, 0, 4);
-            Buffer.BlockCopy(jpg, 0, payload, 4, jpg.Length);
 
-            _ = _ws.Send(payload);
+            _lastSendTime = Time.realtimeSinceStartup;
+            _ = _ws.Send(jpg);
         }
 
         // ── Receive depth map from server ─────────────────────────────────────
         void OnMessageReceived(byte[] data)
         {
-            // Expected: 4 bytes timestamp echo + float32 depth map bytes
-            if (data.Length < 4 + captureWidth * captureHeight * 4)
+            // receive_image.py sends raw float32 depth bytes only — no timestamp header.
+            // Server output is always INFER_SIZE x INFER_SIZE (518x518 by default).
+            // We accept any square float32 payload and let DepthInjector handle sizing.
+            int expectedBytes = serverDepthSize * serverDepthSize * 4;
+            if (data.Length < expectedBytes)
             {
-                Debug.LogWarning("[FrameStreamer] Received undersized message, skipping.");
+                Debug.LogWarning($"[FrameStreamer] Undersized depth reply: got {data.Length} bytes, " +
+                                 $"expected {expectedBytes} ({serverDepthSize}x{serverDepthSize} float32). Skipping.");
                 return;
             }
 
-            float sentTime = BitConverter.ToSingle(data, 0);
-
-            byte[] depthBytes = new byte[data.Length - 4];
-            Buffer.BlockCopy(data, 4, depthBytes, 0, depthBytes.Length);
+            float rttMs = (Time.realtimeSinceStartup - _lastSendTime) * 1000f;
 
             if (DepthInjector.Instance != null)
-                DepthInjector.Instance.EnqueueServerDepth(depthBytes, sentTime);
+                DepthInjector.Instance.EnqueueServerDepth(data, serverDepthSize, serverDepthSize, rttMs);
         }
 
         // ──────────────────────────────────────────────────────────────────────
