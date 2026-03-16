@@ -1,5 +1,10 @@
 {
   "dependencies": {
+    "com.github-glitchenzo.nugetforunity": {
+      "version": "file:com.github-glitchenzo.nugetforunity",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
     "com.endel.nativewebsocket": {
       "version": "https://github.com/endel/NativeWebSocket.git#upm",
       "depth": 0,
