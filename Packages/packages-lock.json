@@ -5,6 +5,7 @@
       "depth": 0,
       "source": "embedded",
       "dependencies": {}
+    },
     "com.endel.nativewebsocket": {
       "version": "https://github.com/endel/NativeWebSocket.git#upm",
       "depth": 0,
