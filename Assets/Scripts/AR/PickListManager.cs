@@ -43,7 +43,16 @@ public class PickListManager : MonoBehaviour
     private readonly HashSet<string> _targetCodes = new(StringComparer.OrdinalIgnoreCase);
 
     // ─────────────────────────────────────────────────────────────────────────
-    void Start() => StartCoroutine(RefreshLoop());
+    void Start()
+    {
+        // Don't poll WMS until a real URL is set
+        if (wmsBaseUrl.Contains("your-wms-api"))
+        {
+            Debug.Log("[PickListManager] Demo mode — skipping WMS fetch.");
+            return;
+        }
+        StartCoroutine(RefreshLoop());
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Primary query: called by AnchorManager on every detected code.

@@ -54,8 +54,22 @@ public class AnchorManager : MonoBehaviour
     private readonly List<ARRaycastHit> _hitResults = new();
 
     // ─────────────────────────────────────────────────────────────────────────
-    void OnEnable()  => barcodeDetector.OnCodeDetected += HandleCodeDetected;
-    void OnDisable() => barcodeDetector.OnCodeDetected -= HandleCodeDetected;
+    void Start()
+    {
+        if (barcodeDetector == null)
+        {
+            Debug.LogError("[AnchorManager] BarcodeDetector is not assigned!");
+            return;
+        }
+        barcodeDetector.OnCodeDetected += HandleCodeDetected;
+        Debug.Log("[AnchorManager] Subscribed to OnCodeDetected.");
+    }
+
+    void OnDestroy()
+    {
+        if (barcodeDetector != null)
+            barcodeDetector.OnCodeDetected -= HandleCodeDetected;
+    }
 
     void Update() => ExpireStaleHighlights();
 
@@ -65,6 +79,15 @@ public class AnchorManager : MonoBehaviour
     // ─────────────────────────────────────────────────────────────────────────
     private async void HandleCodeDetected(string codeId, ResultPoint[] corners)
     {
+        Debug.Log($"[AnchorManager] Code detected: {codeId}");
+
+        if (!pickListManager.IsTargetCode(codeId))
+        {
+            Debug.LogWarning($"[AnchorManager] {codeId} not on pick list - ignoring.");
+            return;
+        }
+
+        Debug.Log($"[AnchorManager] {codeId} is on pick list - spawning highlight.");
         // ── Pick list gate ────────────────────────────────────────────────────
         if (!pickListManager.IsTargetCode(codeId))
         {
@@ -121,59 +144,55 @@ public class AnchorManager : MonoBehaviour
         // We convert pixel width → angular size → metric size at the hit depth.
         float pixelSpread   = ComputePixelSpread(corners);
         float depthToTarget = Vector3.Distance(arCamera.transform.position, hitPose.position);
-        float metricSize    = PixelSpreadToMetricSize(pixelSpread, depthToTarget);
+        //float metricSize    = PixelSpreadToMetricSize(pixelSpread, depthToTarget);
+        float metricSize = 0.3f; // Fixed size for demo purposes
 
         // Clamp to sane warehouse box sizes (10 cm – 120 cm).
         metricSize = Mathf.Clamp(metricSize, 0.10f, 1.20f);
 
         // ── Spawn or update the highlight ─────────────────────────────────────
-        await SpawnOrUpdateHighlightAsync(codeId, item, hitPose, metricSize);
+        await SpawnOrUpdateHighlight(codeId, item, hitPose, metricSize);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Creates a new highlight or repositions the existing one for this codeId.
     // ─────────────────────────────────────────────────────────────────────────
-    private async Task SpawnOrUpdateHighlightAsync(string codeId, PickItem item,
-                                         Pose pose, float size)
+    private async Task SpawnOrUpdateHighlight(string codeId, PickItem item,
+                                           Pose pose, float size)
     {
         if (!_activeHighlights.TryGetValue(codeId, out var active))
         {
-            // First detection of this code — attach a real ARCore anchor so
-            // the highlight stays glued to the physical surface as the device moves.
-            // First detection of this code — attach a real ARCore anchor
-            ARAnchor anchor = null;
-            var anchorResult = await anchorManager.TryAddAnchorAsync(pose);
-            if (anchorResult.status.IsSuccess())
-                anchor = anchorResult.value;
+            Debug.Log($"[AnchorManager] Instantiating highlight at {pose.position}, size: {size}");
 
-            GameObject go = Instantiate(
-                boxHighlightPrefab,
-                pose.position,
-                pose.rotation,
-                anchor != null ? anchor.transform : null
-            );
+            // Skip async anchor for now — place directly in world space
+            GameObject go = Instantiate(boxHighlightPrefab, pose.position, pose.rotation);
+            Debug.Log($"[AnchorManager] Instantiate complete: {go.name}");
 
             var highlight = go.GetComponent<BoxHighlight>();
+            if (highlight == null)
+            {
+                Debug.LogError("[AnchorManager] BoxHighlight component missing from prefab!");
+                return;
+            }
+
             highlight.Initialise(item, size);
+            Debug.Log($"[AnchorManager] Highlight initialised.");
 
             active = new ActiveHighlight
             {
-                go          = go,
-                highlight   = highlight,
-                anchor      = anchor,
+                go = go,
+                highlight = highlight,
+                anchor = null,
                 lastSeenTime = Time.time
             };
             _activeHighlights[codeId] = active;
         }
         else
         {
-            // Already exists — smoothly lerp to the newly measured pose.
-            // This handles jitter from frame-to-frame decode variance.
             active.go.transform.position = Vector3.Lerp(
                 active.go.transform.position, pose.position, Time.deltaTime * 10f);
             active.go.transform.rotation = Quaternion.Slerp(
                 active.go.transform.rotation, pose.rotation, Time.deltaTime * 10f);
-
             active.highlight.UpdateSize(size);
             active.lastSeenTime = Time.time;
         }
@@ -227,7 +246,11 @@ public class AnchorManager : MonoBehaviour
             if (c.Y < minY) minY = c.Y;
             if (c.Y > maxY) maxY = c.Y;
         }
-        return Mathf.Max(maxX - minX, maxY - minY);
+        float spread = Mathf.Max(maxX - minX, maxY - minY);
+
+        // Fallback minimum so the highlight is always visible
+        return Mathf.Max(spread, 50f);
+
     }
 
     /// Converts a pixel measurement to a real-world metric size using the
