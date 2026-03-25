@@ -91,7 +91,7 @@ Shader "ARDepthRefinement/DepthBilateralFilter"
                 }
 
                 float result = (weightSum > 0.0) ? (sum / weightSum) : center;
-                return half4(result, 0, 0, 1);
+                return half4(result, result, result, 1);
             }
 
             ENDHLSL

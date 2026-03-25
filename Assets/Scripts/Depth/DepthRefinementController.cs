@@ -80,6 +80,9 @@ namespace ARDepthRefinement
                 RenderTexture currentOutput = hasProcessedAnything && currentInput == _rtA ? _rtB : _rtA;
 
                 p.Process(currentInput, currentOutput);
+
+                Debug.Log($"Ran processor: {p.name}");
+
                 currentInput = currentOutput;
                 hasProcessedAnything = true;
             }
@@ -108,7 +111,7 @@ namespace ARDepthRefinement
 
             // Mobile-friendly single channel half precision RT
             // If your Unity version/device complains, change format to RenderTextureFormat.RFloat
-            var desc = new RenderTextureDescriptor(_w, _h, RenderTextureFormat.RHalf, 0);
+            var desc = new RenderTextureDescriptor(_w, _h, RenderTextureFormat.ARGB32, 0);
             desc.msaaSamples = 1;
             desc.useMipMap = false;
             desc.autoGenerateMips = false;

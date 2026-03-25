@@ -51,14 +51,14 @@ Shader "ARDepthRefinement/TemporalDepthES"
                 float history = SAMPLE_TEXTURE2D(_HistoryDepth, sampler_HistoryDepth, i.uv).r;
 
                 if (history <= 0.0)
-                    return half4(current,0,0,1);
+                    return half4(current, current, current, 1);
 
                 if (current <= 0.0)
-                    return half4(history,0,0,1);
+                    return half4(history, history, history, 1);
 
                 float result = lerp(history, current, _Alpha);
 
-                return half4(result,0,0,1);
+                return half4(result, result, result, 1);
             }
 
             ENDHLSL
