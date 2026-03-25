@@ -46,22 +46,6 @@ public class BarcodeDetector : MonoBehaviour
     private bool _processingFrame;
 
     // ─────────────────────────────────────────────────────────────────────────
-    void Start()
-    {
-        if (cameraManager == null)
-            Debug.LogError("[BarcodeDetector] ARCameraManager is NOT assigned!");
-        else
-            Debug.Log("[BarcodeDetector] ARCameraManager assigned OK - ready to decode.");
-
-        // Explicitly enable CPU image access — some ARFoundation setups have this disabled by default to save resources.
-        if (cameraManager != null)
-        {
-            cameraManager.enabled = true;
-            Debug.Log("[BarcodeDetector] ARCameraManager enabled and ready for CPU image access.");
-        }
-    }
-
-
     void Awake()
     {
         var options = new DecodingOptions
@@ -85,34 +69,25 @@ public class BarcodeDetector : MonoBehaviour
         _reader.Options = options;
     }
 
-    void OnEnable()
-    {
-        cameraManager.frameReceived += OnCameraFrameReceived;
-        cameraManager.requestedFacingDirection = CameraFacingDirection.World;
-    }
-
-    void OnDisable()
-    {
-        cameraManager.frameReceived -= OnCameraFrameReceived;
-    }
+    void OnEnable()  => cameraManager.frameReceived += OnCameraFrameReceived;
+    void OnDisable() => cameraManager.frameReceived -= OnCameraFrameReceived;
 
     // ─────────────────────────────────────────────────────────────────────────
     // Called by ARFoundation every frame a new camera image is available.
     // ─────────────────────────────────────────────────────────────────────────
     private void OnCameraFrameReceived(ARCameraFrameEventArgs args)
     {
-        Debug.Log("[BarcodeDetector] Frame received!");
-
+        // Throttle: only process every N frames, and never overlap work.
         if (++_frameCounter % detectEveryNFrames != 0) return;
         if (_processingFrame) return;
 
+        // Acquire the CPU image — must be disposed after use.
         if (!cameraManager.TryAcquireLatestCpuImage(out XRCpuImage cpuImage))
-        {
-            Debug.LogWarning("[BarcodeDetector] Could not acquire CPU image.");
             return;
-        }
 
         _processingFrame = true;
+
+        // Kick off async conversion + decode so we never block the render thread.
         StartCoroutine(DecodeAsync(cpuImage));
     }
 
@@ -162,18 +137,17 @@ public class BarcodeDetector : MonoBehaviour
         string  decodedText   = null;
         ResultPoint[] corners = null;
 
-        bool decodeAttempted = false;
-
         yield return new WaitForBackgroundThread(() =>
         {
-            decodeAttempted = true;
-            var result = _reader.Decode(luminance, decodeW, decodeH,
-                                        RGBLuminanceSource.BitmapFormat.Gray8);
+            var luminanceSource = new RGBLuminanceSource(luminance, decodeW, decodeH,
+                                                          RGBLuminanceSource.BitmapFormat.Gray8);
+            var result = _reader.Decode(luminance, decodeW, decodeH, RGBLuminanceSource.BitmapFormat.Gray8);
             if (result != null)
             {
                 decodedText = result.Text;
-                corners = result.ResultPoints;
+                corners     = result.ResultPoints; // Pixel-space corners on the *scaled* image
 
+                // Scale corners back up to full camera-image pixel space.
                 float scaleInv = 1f / decodeResolutionScale;
                 for (int i = 0; i < corners.Length; i++)
                     corners[i] = new ResultPoint(corners[i].X * scaleInv,
@@ -181,19 +155,9 @@ public class BarcodeDetector : MonoBehaviour
             }
         });
 
-        // Back on main thread — now we can log
-        Debug.Log($"[BarcodeDetector] Decode attempted: {decodeAttempted}, result: {decodedText ?? "null"}");
-
         // Back on the main thread — fire the event if something was found.
-        if (decodedText != null && corners != null && corners.Length >= 2)
-        {
-            Debug.Log($"[BarcodeDetector] Firing OnCodeDetected for {decodedText}, corners: {corners.Length}");
+        if (decodedText != null && corners != null && corners.Length >= 4)
             OnCodeDetected?.Invoke(decodedText, corners);
-        }
-        else
-        {
-            Debug.LogWarning($"[BarcodeDetector] Decode succeeded ({decodedText}) but corners invalid: {corners?.Length ?? 0} points.");
-        }
 
         _processingFrame = false;
     }
