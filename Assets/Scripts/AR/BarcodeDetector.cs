@@ -5,6 +5,7 @@ using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 using ZXing;
 using ZXing.Common;
+using ZXing.QrCode;
 
 
 /// <summary>
@@ -48,7 +49,12 @@ public class BarcodeDetector : MonoBehaviour
     // ─────────────────────────────────────────────────────────────────────────
     void Awake()
     {
-        var options = new DecodingOptions
+        _reader = new BarcodeReader<RGBLuminanceSource>(
+            LuminanceSource => LuminanceSource
+            
+        );
+        _reader.AutoRotate = true;
+        _reader.Options = new DecodingOptions
         {
             TryHarder = true,
             PossibleFormats = new[]
@@ -60,17 +66,42 @@ public class BarcodeDetector : MonoBehaviour
             BarcodeFormat.DATA_MATRIX
         }
         };
-
-        _reader = new BarcodeReader<RGBLuminanceSource>(
-            luminanceSource => luminanceSource
-        );
-        _reader.AutoRotate = false;
-        options.TryInverted = true;
-        _reader.Options = options;
     }
 
-    void OnEnable()  => cameraManager.frameReceived += OnCameraFrameReceived;
-    void OnDisable() => cameraManager.frameReceived -= OnCameraFrameReceived;
+    void Start()
+    {
+        if (cameraManager == null)
+        {
+            Debug.LogError("[BarcodeDetector] ARCameraManager is NOT assigned!");
+            return;
+        }
+
+        // Force re-subscribe in case OnEnable fired before ARFoundation was ready
+        cameraManager.frameReceived -= OnCameraFrameReceived;
+        cameraManager.frameReceived += OnCameraFrameReceived;
+        Debug.Log("[BarcodeDetector] Re-subscribed to frameReceived in Start().");
+    }
+
+    
+
+    void OnEnable()
+    {
+        if (cameraManager != null)
+        {
+            cameraManager.frameReceived += OnCameraFrameReceived;
+            Debug.Log("[BarcodeDetector] Subscribed to frameReceived.");
+        }
+        else
+        {
+            Debug.LogError("[BarcodeDetector] cameraManager is null in OnEnable!");
+        }
+    }
+
+    void OnDisable()
+    {
+        if (cameraManager != null)
+            cameraManager.frameReceived -= OnCameraFrameReceived;
+    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Called by ARFoundation every frame a new camera image is available.
@@ -117,6 +148,8 @@ public class BarcodeDetector : MonoBehaviour
         yield return new WaitUntil(() =>
             asyncConversion.status == XRCpuImage.AsyncConversionStatus.Ready);
 
+
+
         if (asyncConversion.status != XRCpuImage.AsyncConversionStatus.Ready)
         {
             asyncConversion.Dispose();
@@ -155,8 +188,10 @@ public class BarcodeDetector : MonoBehaviour
             }
         });
 
+        Debug.Log($"[BarcodeDetector] Decode result: '{decodedText ?? "null"}', corners: {corners?.Length ?? 0}");
+
         // Back on the main thread — fire the event if something was found.
-        if (decodedText != null && corners != null && corners.Length >= 4)
+        if (decodedText != null && corners != null && corners.Length >= 2)
             OnCodeDetected?.Invoke(decodedText, corners);
 
         _processingFrame = false;
