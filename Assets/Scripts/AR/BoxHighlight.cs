@@ -63,6 +63,8 @@ public class BoxHighlight : MonoBehaviour
     private MaterialPropertyBlock _fillMpb;
     private float  _currentSize;
     private float  _targetSize;
+    private float minScale = 0.1f;
+    private float maxScale = 0.5f;
     private Camera _arCamera;
 
     // Cached shader property IDs — faster than string look-ups every frame.
@@ -76,8 +78,10 @@ public class BoxHighlight : MonoBehaviour
         _arCamera    = Camera.main;
         _outlineMpb  = new MaterialPropertyBlock();
         _fillMpb     = new MaterialPropertyBlock();
-        _targetSize  = sizeMeters;
+        _targetSize  = 0.008f;
         _currentSize = sizeMeters * 0.01f; // start tiny → animate in
+
+        labelCanvas.transform.localPosition = Vector3.zero;
 
         // ── Populate label text ───────────────────────────────────────────────
         if (skuText  != null) skuText.text  = item.barcodeId;
@@ -104,27 +108,34 @@ public class BoxHighlight : MonoBehaviour
     // ─────────────────────────────────────────────────────────────────────────
     public void UpdateSize(float newSizeMeters)
     {
-        _targetSize = newSizeMeters;
+        
+
+        //_targetSize = Mathf.Clamp(newSizeMeters, minSize, maxSize);
+        _targetSize = 0.008f; // for testing — fixed size regardless of distance
+
+        Debug.Log($"RAW SIZE: {newSizeMeters}");
+        Debug.Log($"CLAMPED SIZE: {_targetSize}");
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     void Update()
     {
-        // Smoothly track the target size (handles jitter without snapping).
         _currentSize = Mathf.Lerp(_currentSize, _targetSize, Time.deltaTime * 8f);
         transform.localScale = Vector3.one * _currentSize;
 
-        // Billboard: rotate the label to always face the AR camera.
         if (_arCamera != null && labelCanvas != null)
         {
-            Vector3 toCamera = _arCamera.transform.position - labelCanvas.transform.position;
-            toCamera.y = 0f; // keep label upright — don't tilt with camera pitch
-            if (toCamera.sqrMagnitude > 0.001f)
-                labelCanvas.transform.rotation = Quaternion.LookRotation(-toCamera, Vector3.up);
+            // Always place label directly in front of camera at fixed depth
+            // so it's visible regardless of where ARCore places the anchor
+            Vector3 screenCenter = new Vector3(Screen.width * 0.5f, Screen.height * 0.7f, 0.5f);
+            Vector3 worldPos = _arCamera.ScreenToWorldPoint(screenCenter);
+            labelCanvas.transform.position = worldPos;
 
-            // Keep label floating above the highlight centre in world space.
-            labelCanvas.transform.position = transform.position
-                + Vector3.up * (labelOffsetY + _currentSize * 0.5f);
+            // Always face the camera
+            labelCanvas.transform.rotation = Quaternion.LookRotation(
+                labelCanvas.transform.position - _arCamera.transform.position,
+                Vector3.up
+            );
         }
     }
 

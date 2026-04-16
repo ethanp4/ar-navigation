@@ -173,6 +173,17 @@ public class PickListManager : MonoBehaviour
         RebuildLookup();
         OnPickListUpdated?.Invoke(CurrentPickList);
     }
+
+    public void SetSingleTarget(string barcodeId)
+    {
+        var item = GetPickItem(barcodeId);
+        if (item == null) return;
+
+        CurrentPickList = new List<PickItem> { item };
+        RebuildLookup();
+        OnPickListUpdated?.Invoke(CurrentPickList);
+    }
+
 }
 
 // ── Data models ───────────────────────────────────────────────────────────────
@@ -198,3 +209,5 @@ public class PickConfirmPayload
 {
     public string barcodeId;
 }
+
+
